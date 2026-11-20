@@ -658,6 +658,14 @@ static char * const utils[] = {
 	".npreview",
 };
 
+/* UI language: Chinese when NNN_LANG/LC_ALL/LANG starts with "zh" */
+static bool g_zh;
+
+static inline const char *tr(const char *en, const char *zh)
+{
+	return g_zh ? zh : en;
+}
+
 /* Common strings */
 #define MSG_ZERO         0 /* Unused */
 #define MSG_0_ENTRIES    1
@@ -705,7 +713,7 @@ static char * const utils[] = {
 #define MSG_BM_NAME      43
 #define MSG_ARCHIVE_RLTV 44
 
-static const char * const messages[] = {
+static const char * const messages_en[] = {
 	"",
 	"0 entries",
 	"/.nnnXXXXXX",
@@ -752,6 +760,71 @@ static const char * const messages[] = {
 	"name: ",
 	"add files with relative path?",
 };
+
+static const char * const messages_zh[] = {
+	"",
+	"0 项",
+	"/.nnnXXXXXX",
+	"已选 0 项",
+	"已取消",
+	"失败！",
+	"会话名称：",
+	"'c'复制/'m'移动为？",
+	"'c'当前/'s'选中？",
+	"超出文件数上限",
+	"超出大小上限",
+	"['f'文件]/'d'目录/'s'软链/'h'硬链？",
+	"['g'图形]/'c'终端？",
+	"覆盖？",
+	"'s'保存/'l'加载/'r'恢复？",
+	"退出全部上下文？",
+	"远程名称（- 为悬停项）：",
+	"归档 [路径/]名称：",
+	"打开方式：",
+	"[路径/]名称：",
+	"链接前缀（@ 为无）：",
+	"复制 [路径/]名称：",
+	"\n按 'Enter' 继续",
+	"打开失败",
+	"目录不可访问",
+	"为空！编辑或指定打开方式",
+	"?",
+	"未设置",
+	"条目已存在",
+	"列数不足！",
+	"'s'sshfs/'r'clone？",
+	"如缓慢请刷新",
+	"应用：",
+	"['l'列出]/'o'打开/'x'解压/'m'挂载？",
+	"按键：",
+	"无效正则",
+	"'a'表观/'d'占用/'e'扩展名/'r'反转/'s'大小/'t'时间/'v'版本/'c'清除/'^T'循环？",
+	"卸载失败！尝试延迟卸载？",
+	"首文件（'）/字符？",
+	"删除临时文件？",
+	"无效按键",
+	"无变化",
+	"目录已变更，范围选择关闭",
+	"名称：",
+	"以相对路径添加文件？",
+};
+
+/* Points to the active language table, set in init_lang() */
+static const char * const *messages = messages_en;
+
+/* Initialize UI language: NNN_LANG overrides LC_ALL overrides LANG */
+static void init_lang(void)
+{
+	const char *lang = getenv("NNN_LANG");
+
+	if (!lang || !lang[0])
+		lang = getenv("LC_ALL");
+	if (!lang || !lang[0])
+		lang = getenv("LANG");
+
+	g_zh = lang && (lang[0] == 'z') && (lang[1] == 'h');
+	messages = g_zh ? messages_zh : messages_en;
+}
 
 /* Supported configuration environment variables */
 #define NNN_OPTS    0
@@ -2409,11 +2482,11 @@ static bool initcurses(void *oldmask)
 
 	if (g_state.picker) {
 		if (!newterm(NULL, stderr, stdin)) {
-			msg("newterm!");
+			msg(tr("newterm!", "newterm 失败！"));
 			return FALSE;
 		}
 	} else if (!initscr()) {
-		msg("initscr!");
+		msg(tr("initscr!", "initscr 失败！"));
 		DPRINTF_S(getenv("TERM"));
 		return FALSE;
 	}
@@ -6140,7 +6213,7 @@ static bool archive_mount(char *newpath)
 	char mntpath[PATH_MAX];
 
 	if (!getutil(cmd)) {
-		printmsg("install utility (archivemount)");
+		printmsg(tr("install utility (archivemount)", "请安装工具 (archivemount)"));
 		return FALSE;
 	}
 
@@ -6188,7 +6261,7 @@ static bool remote_mount(char *newpath)
 	char mntpath[PATH_MAX];
 
 	if (!(r || s)) {
-		printmsg("install sshfs/rclone");
+		printmsg(tr("install sshfs/rclone", "请安装 sshfs/rclone"));
 		return FALSE;
 	}
 
@@ -6434,7 +6507,7 @@ static void add_bookmark(char *path, char *newpath, int *presel)
  */
 static void show_help(const char *path)
 {
-	static const char helpstr[] = {
+	static const char helpstr_en[] = {
 	"2|V\\_\n"
 	"2/. \\\\\n"
 	"1(;^; ||\n"
@@ -6480,6 +6553,55 @@ static void show_help(const char *path)
 		  "cT  Set time type%110  Lock\n"
 		 "b^L  Redraw%18?  Help, conf\n"
 	};
+	/* Each line must start with a hex digit (leading space count), same
+	   encoding as helpstr_en; the body must not contain a '%' */
+	static const char helpstr_zh[] = {
+	"2|V\\_\n"
+	"2/. \\\\\n"
+	"1(;^; ||\n"
+	"3/___3\n"
+	"2(___n))\n"
+	"0\n"
+	"1导航\n"
+	"9上 k  上一项%12PgUp ^U  上翻页\n"
+	"9下 j  下一项%12PgDn ^D  下翻页\n"
+	"9左 h  上级%14~ ` @ -  主目录/根/起始/上级\n"
+	"5回车 右 l  打开%19'  首个文件/匹配\n"
+	"9g ^A  顶部%20J  跳转到条目/偏移\n"
+	"9G ^E  底部%19^J  打开后自动前进开关\n"
+	"c.  切换隐藏项%14d  细节模式切换\n"
+	"8B (,)  书签%17b ^/  选择书签\n"
+	"a1-8  上下文%12(Sh)Tab  循环/新建上下文\n"
+	"62Esc ^Q  退出%19^y  下一个新条目\n"
+	"b^G  退出并 cd%15Q  选取/出错时退出\n"
+	"4q Alt+Esc  退出上下文%14R  重开上下文\n"
+	"0\n"
+	"1过滤与提示\n"
+	"c/  过滤%19^N  输入即导航开关\n"
+	"aEsc  退出提示%15^L  清除/应用过滤\n"
+	"0\n"
+	"1文件\n"
+	"9o ^O  用...打开%15n  新建/链接\n"
+	"9f ^F  文件统计%16P  预览开关\n"
+	"b^R  重命名/复制%13r  批量重命名\n"
+	"cz  归档%20e  编辑文件\n"
+	"c*  切换可执行%14>  导出列表\n"
+	"6Space +  选中/取消%13m-m  范围选择/清除\n"
+	"ca  全选%20A  反选\n"
+	"9p ^P  复制到此%13w ^W  复制/移动选中为\n"
+	"9v ^V  移动到此%16E  编辑选中列表\n"
+	"9x ^X  删除或回收%14S  选中项总大小\n"
+	"cX  删除 (rm -rf)%09Esc  发送到 FIFO\n"
+	"0\n"
+	"1杂项\n"
+	"8Alt ;  选择插件%16=  启动应用\n"
+	"9! ^]  Shell%19]  命令提示\n"
+	"cc  连接远程%16u  卸载远程/归档\n"
+	"9t ^T  排序切换%16s  管理会话\n"
+	"cT  设置时间类型%120  锁定\n"
+	"b^L  重绘%20?  帮助/配置\n"
+	};
+	const char *helpstr = g_zh ? helpstr_zh : helpstr_en;
 
 	int fd = create_tmp_file();
 	if (fd == -1)
@@ -6496,7 +6618,7 @@ static void show_help(const char *path)
 		get_output(prog, NULL, NULL, fd, FALSE);
 
 	bool hex = true;
-	const char *end = helpstr + sizeof(helpstr) - 1;
+	const char *end = helpstr + strlen(helpstr);
 
 	for (const char *s = helpstr; s < end; ++s) {
 		if (hex) {
@@ -6515,20 +6637,20 @@ static void show_help(const char *path)
 
 #ifndef NOSSN
 	if (curssn[0])
-		fprintf(f, "\nSESSION: %s\n", curssn);
+		fprintf(f, tr("\nSESSION: %s\n", "\n会话：%s\n"), curssn);
 #endif
 
-	fprintf(f, "\nCONTEXTS\n");
+	fprintf(f, tr("\nCONTEXTS\n", "\n上下文\n"));
 	for (uchar_t i = 0; i < CTX_MAX; ++i)
 		if (g_ctx[i].c_cfg.ctxactive)
 			fprintf(f, " %u%c %s\n", i + 1, (cfg.curctx == i) ? '*' : ' ', g_ctx[i].c_path);
 
-	fprintf(f, "\nVOLUME: avail:%s ", coolsize(get_fs_info(path, VFS_AVAIL)));
-	fprintf(f, "used:%s ", coolsize(get_fs_info(path, VFS_USED)));
-	fprintf(f, "size:%s\n\n", coolsize(get_fs_info(path, VFS_SIZE)));
+	fprintf(f, tr("\nVOLUME: avail:%s ", "\n容量：可用:%s "), coolsize(get_fs_info(path, VFS_AVAIL)));
+	fprintf(f, tr("used:%s ", "已用:%s "), coolsize(get_fs_info(path, VFS_USED)));
+	fprintf(f, tr("size:%s\n\n", "总计:%s\n\n"), coolsize(get_fs_info(path, VFS_SIZE)));
 
 	if (bookmark || mark) {
-		fprintf(f, "BOOKMARKS\n");
+		fprintf(f, tr("BOOKMARKS\n", "书签\n"));
 		printkv(bookmark, f, maxbm, NNN_BMS);
 		if (mark)
 			fprintf(f, " ,: %s\n", mark);
@@ -6537,7 +6659,7 @@ static void show_help(const char *path)
 
 	lazy_parse_plug();
 	if (plug) {
-		fprintf(f, "PLUGIN KEYS\n");
+		fprintf(f, tr("PLUGIN KEYS\n", "插件按键\n"));
 		printkv(plug, f, maxplug, NNN_PLUG);
 		fprintf(f, "\n");
 	}
@@ -6549,7 +6671,7 @@ static void show_help(const char *path)
 	}
 
 	if (selpath)
-		fprintf(f, "SELECTION FILE: %s\n", selpath);
+		fprintf(f, tr("SELECTION FILE: %s\n", "选择文件：%s\n"), selpath);
 
 	fprintf(f, "\nv%s\n%s\n", VERSION, GENERAL_INFO);
 	fclose(f); // also closes fd
@@ -7218,7 +7340,7 @@ static void dirwalk(char *path, int entnum, bool mountpoint, bool no_aggregate)
 
 	if (first_call) {
 		tolastln();
-		addstr("[^C aborts]\n");
+		addstr(tr("[^C aborts]\n", "[^C 中止]\n"));
 		refresh();
 		first_call = FALSE;
 	}
@@ -9496,7 +9618,7 @@ nochange:
 			}
 
 			if ((nselected > LARGESEL) || (nselected && (ndents > LARGESEL))) {
-				printmsg("processing...");
+				printmsg(tr("processing...", "处理中..."));
 				refresh();
 			}
 
@@ -10250,7 +10372,7 @@ static void check_key_collision(void)
 		key = bindings[i].sym;
 
 		if (bitmap[key])
-			fprintf(stderr, "key collision! [%s]\n", keyname(key));
+			fprintf(stderr, tr("key collision! [%s]\n", "按键冲突！[%s]\n"), keyname(key));
 		else
 			bitmap[key] = TRUE;
 	}
@@ -10258,7 +10380,7 @@ static void check_key_collision(void)
 
 static void usage(void)
 {
-	fprintf(stdout,
+	static const char usage_en[] =
 		"%s: nnn [OPTIONS] [PATH]\n\n"
 		"The unorthodox terminal file manager.\n\n"
 		"positional args:\n"
@@ -10313,7 +10435,66 @@ static void usage(void)
 		" -z      in order fuzzy filters\n"
 		" -0      null separator in picker mode\n"
 		" -h      show help\n\n"
-		"v%s\n%s\n", __func__, VERSION, GENERAL_INFO);
+		"v%s\n%s\n";
+	static const char usage_zh[] =
+		"%s: nnn [选项] [路径]\n\n"
+		"非同寻常的终端文件管理器。\n\n"
+		"位置参数：\n"
+		"  PATH   起始目录/文件 [默认: .]\n\n"
+		"可选参数：\n"
+#ifndef NOFIFO
+		" -a      自动 NNN_FIFO\n"
+#endif
+		" -A      过滤时不自动进入目录\n"
+		" -b key  打开书签键（优先于 -s/S）\n"
+		" -B      归档使用 bsdtar\n"
+		" -c      仅终端 NNN_OPENER（优先于 -e）\n"
+		" -C      8 色配色\n"
+		" -d      细节模式\n"
+		" -D      目录使用上下文颜色\n"
+		" -e      文本用 $VISUAL/$EDITOR/vi 打开\n"
+		" -E      内部编辑用 EDITOR\n"
+		" -f      使用历史文件\n"
+#ifndef NOFIFO
+		" -F val  FIFO 模式 [0:预览 1:浏览]\n"
+#endif
+		" -g      正则过滤\n"
+		" -H      显示隐藏文件\n"
+		" -i      显示当前文件信息\n"
+		" -J      选中后不自动前进\n"
+		" -K      检测按键冲突并退出\n"
+		" -l val  设置滚动行数\n"
+		" -n      输入即导航模式\n"
+#ifndef NORL
+		" -N      使用原生提示\n"
+#endif
+		" -o      仅回车时打开文件\n"
+		" -p file 选择文件 [-:标准输出]\n"
+		" -P key  运行插件键\n"
+		" -Q      退出时不确认\n"
+		" -r      使用 advcpmv 补丁版 cp、mv\n"
+		" -R      边缘处不循环\n"
+#ifndef NOSSN
+		" -s name 按名称加载会话\n"
+		" -S      持久会话\n"
+#endif
+		" -t secs 锁定超时（秒）\n"
+		" -T key  排序 [a/d/e/r/s/t/v]\n"
+		" -u      使用选择（无提示）\n"
+#ifndef NOUG
+		" -U      显示用户和组\n"
+#endif
+		" -V      显示版本\n"
+#ifndef NOX11
+		" -x      通知、选择同步、xterm 标题\n"
+#endif
+		" -z      有序模糊过滤\n"
+		" -0      picker 模式使用空分隔符\n"
+		" -h      显示帮助\n\n"
+		"v%s\n%s\n";
+
+	fprintf(stdout, g_zh ? usage_zh : usage_en,
+			tr("usage", "用法"), VERSION, GENERAL_INFO);
 }
 
 static bool setup_config(void)
@@ -10412,7 +10593,7 @@ static bool set_tmp_path(void)
 	char *path = xdiraccess(tmp) ? tmp : getenv("TMPDIR");
 
 	if (!path) {
-		msg("set TMPDIR");
+		msg(tr("set TMPDIR", "请设置 TMPDIR"));
 		return FALSE;
 	}
 
@@ -10682,7 +10863,7 @@ static int parse_env_opts(const char *env_opts, struct optstate *st)
 
 	/* getopt moves non-option words to the end, optind then points at the first */
 	if (ret == -1 && optind < ac) {
-		fprintf(stderr, "nnn: NNN_OPTS: unexpected '%s'\n", av[optind]);
+		fprintf(stderr, tr("nnn: NNN_OPTS: unexpected '%s'\n", "nnn: NNN_OPTS: 意外参数 '%s'\n"), av[optind]);
 		ret = EXIT_FAILURE;
 	}
 
@@ -10703,6 +10884,8 @@ int main(int argc, char *argv[])
 			    ? CONTROL(middle_click_env[1])
 			    : (uchar_t)middle_click_env[0];
 #endif
+
+	init_lang();
 
 	const char * const env_opts = xgetenv(env_cfg[NNN_OPTS], NULL);
 
@@ -10758,7 +10941,7 @@ int main(int argc, char *argv[])
 
 	home = getenv("HOME");
 	if (!home) {
-		msg("set HOME");
+		msg(tr("set HOME", "请设置 HOME"));
 		return EXIT_FAILURE;
 	}
 	DPRINTF_S(home);
