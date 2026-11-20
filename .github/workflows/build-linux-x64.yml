@@ -1,0 +1,45 @@
+name: build-linux-x64
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-linux-x64-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  musl-static:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install musl toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git musl musl-dev musl-tools
+
+      - name: Build static binaries
+        run: sh misc/musl/musl-static-ubuntu.sh 1
+
+      - name: Strip and verify
+        run: |
+          strip nnn-musl-static nnn-musl-emoji-static
+          file nnn-musl-static nnn-musl-emoji-static
+
+      - name: Upload nnn-linux-x86_64
+        uses: actions/upload-artifact@v4
+        with:
+          name: nnn-linux-x86_64
+          path: nnn-musl-static
+
+      - name: Upload nnn-linux-x86_64-emoji
+        uses: actions/upload-artifact@v4
+        with:
+          name: nnn-linux-x86_64-emoji
+          path: nnn-musl-emoji-static
